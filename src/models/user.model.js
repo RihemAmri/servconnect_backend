@@ -5,6 +5,8 @@ const UserSchema = new mongoose.Schema({
   prenom: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   motDePasse: { type: String, required: true },
+  photo: { type: String }, // lien Cloudinary
+
   telephone: { type: String },
   adresse: { type: String },
   photo: { type: String }, // lien Cloudinary
