@@ -1,17 +1,17 @@
-import express from 'express';
-import cors from 'cors';
-import http from 'http';
-import debugLib from 'debug';
-import dotenv from 'dotenv';
-import mongoose from 'mongoose';
-import path from 'path';
-import userRoutes from './src/routes/userRoutes.js';
-
-
+import express from "express";
+import cors from "cors";
+import http from "http";
+import debugLib from "debug";
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+import path from "path";
+import userRoutes from "./src/routes/userRoutes.js";
+import adminRoutes from "./src/routes/adminRoutes.js";
+import { createDefaultAdmin } from "./src/config/createAdmin.js";
 
 dotenv.config(); // charge .env
 
-const debug = debugLib('servconnect:server');
+const debug = debugLib("servconnect:server");
 const app = express();
 
 // Middleware global
@@ -34,37 +34,44 @@ app.use((req, res, next) => {
 });
 
 // Connexion MongoDB Atlas
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log("✅ Connecté à MongoDB Atlas"))
-  .catch(err => console.error("❌ Erreur de connexion MongoDB :", err.message));
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log("📡 Base de données connectée");
+    createDefaultAdmin(); // <<< AUTO CRÉATION ADMIN ICI
+  })
+  .catch((err) =>
+    console.error("❌ Erreur de connexion MongoDB :", err.message)
+  );
 
 // Routes
-app.use('/api/users', userRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Normalisation du port
-const normalizePort = val => {
+const normalizePort = (val) => {
   const port = parseInt(val, 10);
   if (isNaN(port)) return val;
   if (port >= 0) return port;
   return false;
 };
-const port = normalizePort(process.env.PORT || '3130');
-app.set('port', port);
+const port = normalizePort(process.env.PORT || "3130");
+app.set("port", port);
 
 const server = http.createServer(app);
 
 // Gestion des erreurs
-const onError = error => {
-  if (error.syscall !== 'listen') throw error;
-  const bind = typeof port === 'string' ? 'Pipe ' + port : 'Port ' + port;
+const onError = (error) => {
+  if (error.syscall !== "listen") throw error;
+  const bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
   switch (error.code) {
-    case 'EACCES':
+    case "EACCES":
       console.error(`${bind} nécessite des privilèges élevés`);
       process.exit(1);
-    case 'EADDRINUSE':
+    case "EADDRINUSE":
       console.error(`${bind} est déjà utilisé`);
       process.exit(1);
     default:
@@ -75,11 +82,11 @@ const onError = error => {
 // Lancement du serveur
 const onListening = () => {
   const addr = server.address();
-  const bind = typeof addr === 'string' ? `Pipe ${addr}` : `Port ${addr.port}`;
+  const bind = typeof addr === "string" ? `Pipe ${addr}` : `Port ${addr.port}`;
   debug(`Listening on ${bind}`);
   console.log(`🚀 Serveur backend lancé sur ${bind}`);
 };
 
-server.on('error', onError);
-server.on('listening', onListening);
+server.on("error", onError);
+server.on("listening", onListening);
 server.listen(port);
