@@ -15,14 +15,38 @@ const ProviderSchema = new mongoose.Schema({
   noteGenerale: { type: Number, default: 0 },
   nombreAvis: { type: Number, default: 0 },
   documents: [{ type: String }], // si tu veux lier Cloudinary URLs plus tard
-  disponibilite: [AvailabilitySchema],
-  // ⭐ Avis associés
   reviews: [
     {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Review',
+      ref: 'Review'
     }
   ],
+  disponibilite: [AvailabilitySchema],
+  verificationDocuments: [{
+    documentType: {
+      type: String,
+      enum: ['id', 'certificate', 'license', 'other'],
+      required: true
+    },
+    path: {
+      type: String,
+      required: true
+    },
+    isVerified: {
+      type: Boolean,
+      default: false
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'verified', 'rejected'],
+      default: 'pending'
+    },
+    rejectionReason: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 });
 
 export default mongoose.model('Provider', ProviderSchema);

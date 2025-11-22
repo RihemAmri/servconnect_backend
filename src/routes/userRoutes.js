@@ -10,7 +10,7 @@ router.post('/register', upload.single('photo'), registerUser);
 export default router;*/
 import express from "express";
 import upload from "../middleware/upload.js";
-import { registerUser, registerProvider,loginUser  } from "../controllers/userController.js";
+import { registerUser, registerProvider,loginUser , forgotPassword, resetPassword } from "../controllers/userController.js";
 
 const router = express.Router();
 
@@ -28,6 +28,8 @@ router.post(
   registerProvider
 );
 router.post("/login", loginUser);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password/:token", resetPassword);
 
 export default router;
 

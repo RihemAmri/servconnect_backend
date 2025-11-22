@@ -1,18 +1,26 @@
-import express from "express";
-import uploadProvider from "../middleware/uploadProvider.js";
-import { registerProvider } from "../controllers/providerController.js";
+import express from 'express';
+import {
+  registerProvider,
+  getProviders,
+  getProviderById,
+  updateProvider,
+  updateAvailability,
+  getProviderBookings,
+  getProviderStats,
+  verifyDocuments
+} from '../controllers/providerController.js';
+import upload from '../middleware/upload.js';
 
 const router = express.Router();
 
-// Inscription prestataire avec uploads multiples
-router.post(
-  "/register",
-  uploadProvider.fields([
-    { name: "photo", maxCount: 1 },
-    { name: "certifications", maxCount: 5 },
-    { name: "documents", maxCount: 5 },
-  ]),
-  registerProvider
-);
+// ===== ROUTES PROVIDERS =====
+router.get('/', getProviders);                    // GET /api/providers
+router.get('/:id', getProviderById);              // GET /api/providers/:id
+router.get('/:id/stats', getProviderStats);       // GET /api/providers/:id/stats
+router.get('/:id/bookings', getProviderBookings); // GET /api/providers/:id/bookings
+router.post('/register', upload.array('documents', 5), registerProvider); // POST /api/providers/register
+router.put('/:id', upload.array('documents', 5), updateProvider); // PUT /api/providers/:id
+router.put('/:id/availability', updateAvailability); // PUT /api/providers/:id/availability
+router.put('/:id/verify', verifyDocuments);       // PUT /api/providers/:id/verify
 
 export default router;
