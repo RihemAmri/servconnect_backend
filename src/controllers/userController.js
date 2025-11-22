@@ -95,7 +95,11 @@ export const registerUser = async (req, res) => {
       email,
       motDePasse: hashedPassword,
       telephone,
-      adresse,
+      adresse: {
+        street: adresse.street,
+        lat: adresse.lat,
+        lng: adresse.lng
+      },
       role: role || "client",
       photo: photoUrl,
     });
@@ -115,6 +119,8 @@ export const registerUser = async (req, res) => {
 // 📌 Inscription prestataire (avec fichiers Cloudinary)
 export const registerProvider = async (req, res) => {
   try {
+    console.log("req.body:", req.body);
+    console.log("req.files:", req.files);
     const {
       nom,
       prenom,
@@ -125,6 +131,7 @@ export const registerProvider = async (req, res) => {
       metier,
       description,
       experience,
+      disponibilite,
     } = req.body;
 
     // Vérification email unique
@@ -140,6 +147,24 @@ export const registerProvider = async (req, res) => {
     const certificationsUrls =
       req.files?.certifications?.map((f) => f.path) || [];
     const documentsUrls = req.files?.documents?.map((f) => f.path) || [];
+    console.log(req.body.disponibilite);
+    // Convertir disponibilité en JSON
+    let disponibiliteParsed = [];
+    if (disponibilite) {
+      try {
+        disponibiliteParsed = JSON.parse(disponibilite);
+      } catch (err) {
+        return res.status(400).json({ message: "Disponibilité invalide" });
+      }
+    }
+     // ⭐⭐ RECONSTRUIRE l’adresse proprement
+    const adresseParsed = adresse
+      ? {
+          street: adresse.street,
+          lat: adresse.lat,
+          lng: adresse.lng,
+        }
+      : null;
 
     // Création du user
     const newUser = new User({
@@ -148,7 +173,7 @@ export const registerProvider = async (req, res) => {
       email,
       motDePasse: hashedPassword,
       telephone,
-      adresse,
+      adresse: adresseParsed,
       role: "prestataire",
       photo: photoUrl,
     });
@@ -163,6 +188,7 @@ export const registerProvider = async (req, res) => {
       experience,
       certifications: certificationsUrls,
       documents: documentsUrls,
+      disponibilite: disponibiliteParsed,
     });
 
     await newProvider.save();
