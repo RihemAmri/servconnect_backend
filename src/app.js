@@ -1,9 +1,13 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const connectDB = require('./config/db');
-const userRoutes = require('./routes/userRoutes'); // ✅ import manquant
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import connectDB from './config/db.js';
+import userRoutes from './routes/userRoutes.js';
+import providerRoutes from './routes/providerRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 
@@ -20,23 +24,23 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Origin,authorization, X-Requested-With, Content-Type, Accept"
+    "Origin, authorization, X-Requested-With, Content-Type, Accept"
   );
   res.setHeader(
     "Access-Control-Allow-Methods",
-    "GET, POST, PATCH, DELETE, OPTIONS"
+    "GET, POST, PATCH, PUT, DELETE, OPTIONS"
   );
   next();
 });
 
 // 🔹 Routes principales
-app.use('/api/users', userRoutes); // ✅ ici après les middlewares
+app.use('/api/users', userRoutes);
+app.use('/api/providers', providerRoutes);
+app.use('/api/bookings', bookingRoutes);
 
-// (Optionnel) Pour Angular build
-// const __dirname1 = path.resolve();
-// app.use(express.static(path.join(__dirname1, '/frontend/dist')));
-// app.get('*', (req, res) =>
-//   res.sendFile(path.resolve(__dirname1, 'frontend', 'dist', 'index.html'))
-// );
+// 📊 Route de test API
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API fonctionne correctement !' });
+});
 
-module.exports = app;
+export default app;

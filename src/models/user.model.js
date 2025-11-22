@@ -6,10 +6,12 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   motDePasse: { type: String, required: true },
   photo: { type: String }, // lien Cloudinary
-
   telephone: { type: String },
-  adresse: { type: String },
-  photo: { type: String }, // lien Cloudinary
+  adresse: {
+    street: { type: String},
+    lat: { type: Number},
+    lng: { type: Number }
+  },
   role: {
     type: String,
     enum: ['client', 'prestataire', 'admin'],
