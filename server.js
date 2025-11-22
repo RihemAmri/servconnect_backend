@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import path from 'path';
 import userRoutes from './src/routes/userRoutes.js';
+import mapRoutes from './src/routes/mapRoutes.js';
 
 
 
@@ -43,7 +44,7 @@ mongoose.connect(process.env.MONGO_URI, {
 
 // Routes
 app.use('/api/users', userRoutes);
-
+app.use('/api/map', mapRoutes);
 // Normalisation du port
 const normalizePort = val => {
   const port = parseInt(val, 10);

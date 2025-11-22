@@ -95,7 +95,11 @@ export const registerUser = async (req, res) => {
       email,
       motDePasse: hashedPassword,
       telephone,
-      adresse,
+      adresse: {
+        street: adresse.street,
+        lat: adresse.lat,
+        lng: adresse.lng
+      },
       role: role || "client",
       photo: photoUrl,
     });
@@ -153,6 +157,14 @@ export const registerProvider = async (req, res) => {
         return res.status(400).json({ message: "Disponibilité invalide" });
       }
     }
+     // ⭐⭐ RECONSTRUIRE l’adresse proprement
+    const adresseParsed = adresse
+      ? {
+          street: adresse.street,
+          lat: adresse.lat,
+          lng: adresse.lng,
+        }
+      : null;
 
     // Création du user
     const newUser = new User({
@@ -161,7 +173,7 @@ export const registerProvider = async (req, res) => {
       email,
       motDePasse: hashedPassword,
       telephone,
-      adresse,
+      adresse: adresseParsed,
       role: "prestataire",
       photo: photoUrl,
     });
