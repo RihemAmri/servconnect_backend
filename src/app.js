@@ -6,19 +6,15 @@ import userRoutes from './routes/userRoutes.js';
 import providerRoutes from './routes/providerRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import dotenv from 'dotenv';
-
+import mapRoutes from './routes/mapRoutes.js';
 dotenv.config();
-
 const app = express();
-
 // 🔹 Connexion à MongoDB
 connectDB();
-
 // 🔹 Middlewares globaux
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 // 🔹 En-têtes CORS personnalisés
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -37,7 +33,7 @@ app.use((req, res, next) => {
 app.use('/api/users', userRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/bookings', bookingRoutes);
-
+app.use('/api/map', mapRoutes);
 // 📊 Route de test API
 app.get('/api/test', (req, res) => {
   res.json({ message: 'API fonctionne correctement !' });

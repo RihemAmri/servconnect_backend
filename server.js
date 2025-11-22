@@ -2,36 +2,9 @@ import http from 'http';
 import debugLib from 'debug';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import path from 'path';
-import userRoutes from './src/routes/userRoutes.js';
-import mapRoutes from './src/routes/mapRoutes.js';
-
-
-
+import app from './src/app.js';
 dotenv.config(); // charge .env
-
 const debug = debugLib('servconnect:server');
-const app = express();
-
-// Middleware global
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// CORS Headers
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Origin, Authorization, X-Requested-With, Content-Type, Accept"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PATCH, DELETE, OPTIONS"
-  );
-  next();
-});
-
 // Connexion MongoDB Atlas
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
@@ -39,10 +12,6 @@ mongoose.connect(process.env.MONGO_URI, {
 })
   .then(() => console.log("✅ Connecté à MongoDB Atlas"))
   .catch(err => console.error("❌ Erreur de connexion MongoDB :", err.message));
-
-// Routes
-app.use('/api/users', userRoutes);
-app.use('/api/map', mapRoutes);
 // Normalisation du port
 const normalizePort = val => {
   const port = parseInt(val, 10);
@@ -50,7 +19,6 @@ const normalizePort = val => {
   if (port >= 0) return port;
   return false;
 };
-
 const port = normalizePort(process.env.PORT || '5000');
 app.set('port', port);
 
