@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import AvailabilitySchema from './availabilityModel.js';
 
 const ProviderSchema = new mongoose.Schema({
   user: {
@@ -11,8 +12,17 @@ const ProviderSchema = new mongoose.Schema({
   experience: { type: Number },
   certifications: [{ type: String }],
   isVerified: { type: Boolean, default: false },
-  
-  documents: [{ type: String }] // si tu veux lier Cloudinary URLs plus tard
+  noteGenerale: { type: Number, default: 0 },
+  nombreAvis: { type: Number, default: 0 },
+  documents: [{ type: String }], // si tu veux lier Cloudinary URLs plus tard
+  disponibilite: [AvailabilitySchema],
+  // ⭐ Avis associés
+  reviews: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Review',
+    }
+  ],
 });
 
 export default mongoose.model('Provider', ProviderSchema);
