@@ -11,8 +11,7 @@ const ProviderSchema = new mongoose.Schema({
   experience: { type: Number },
   certifications: [{ type: String }],
   isVerified: { type: Boolean, default: false },
-  noteGenerale: { type: Number, default: 0 },
-  nombreAvis: { type: Number, default: 0 },
+  
   documents: [{ type: String }] // si tu veux lier Cloudinary URLs plus tard
 });
 
