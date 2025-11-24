@@ -1,33 +1,36 @@
-import Provider from '../models/providerModel.js';
-import User from '../models/user.model.js';
-import Booking from '../models/Booking.js';
-import Review from '../models/Review.js';
+import Provider from "../models/providerModel.js";
+import User from "../models/user.model.js";
+import Booking from "../models/Booking.js";
+import Review from "../models/Review.js";
 
 // ===== REGISTER PROVIDER =====
 export const registerProvider = async (req, res) => {
   try {
-    const { userId, metier, description, experience, certifications } = req.body;
+    const { userId, metier, description, experience, certifications } =
+      req.body;
 
     // Vérifier si l'utilisateur existe
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      return res.status(404).json({ message: "Utilisateur non trouvé" });
     }
 
     // Vérifier si l'utilisateur n'est pas déjà provider
     const existingProvider = await Provider.findOne({ user: userId });
     if (existingProvider) {
-      return res.status(400).json({ message: 'Cet utilisateur est déjà un prestataire' });
+      return res
+        .status(400)
+        .json({ message: "Cet utilisateur est déjà un prestataire" });
     }
 
     // Traiter les documents de vérification si des fichiers sont uploadés
     const verificationDocuments = [];
     if (req.files && req.files.length > 0) {
-      req.files.forEach(file => {
+      req.files.forEach((file) => {
         verificationDocuments.push({
           documentType: file.fieldname, // Le type sera dans le fieldname
           path: file.path,
-          status: 'pending'
+          status: "pending",
         });
       });
     }
@@ -38,44 +41,43 @@ export const registerProvider = async (req, res) => {
       metier,
       description,
       experience: parseInt(experience) || 0,
-      certifications: certifications ? certifications.split(',') : [],
-      verificationDocuments
+      certifications: certifications ? certifications.split(",") : [],
+      verificationDocuments,
     });
 
     await newProvider.save();
 
     res.status(201).json({
-      message: 'Prestataire créé avec succès',
-      provider: newProvider
+      message: "Prestataire créé avec succès",
+      provider: newProvider,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
 
 // ===== GET ALL PROVIDERS WITH FILTERS =====
 export const getProviders = async (req, res) => {
-  
-    try {
-    const { 
-      category, 
-      location, 
-      minRating = 0, 
-      maxPrice, 
-      sortBy = 'noteGenerale', 
-      sortOrder = 'desc',
+  try {
+    const {
+      category,
+      location,
+      minRating = 0,
+      maxPrice,
+      sortBy = "noteGenerale",
+      sortOrder = "desc",
       page = 1,
-      limit = 10
+      limit = 10,
     } = req.query;
 
     // Construction du filtre
     const filter = {};
-    
-    if (category && category !== 'Tous') {
-      filter.metier = new RegExp(category, 'i');
+
+    if (category && category !== "Tous") {
+      filter.metier = new RegExp(category, "i");
     }
-    
+
     if (minRating) {
       filter.noteGenerale = { $gte: parseFloat(minRating) };
     }
@@ -85,24 +87,23 @@ export const getProviders = async (req, res) => {
 
     // Récupération des providers
     const providers = await Provider.find(filter)
-      .populate('user', 'nom prenom email telephone adresse photo')
-      .populate('reviews')
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
+      .populate("user", "nom prenom email telephone adresse photo")
+      .populate("reviews")
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
-    
+
     const totalProviders = await Provider.countDocuments(filter);
     console.log("Fetched providers:", providers);
     res.status(200).json({
       providers,
       totalPages: Math.ceil(totalProviders / parseInt(limit)),
       currentPage: parseInt(page),
-      totalProviders
+      totalProviders,
     });
   } catch (error) {
-    
     console.error(error);
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
 
@@ -112,23 +113,23 @@ export const getProviderById = async (req, res) => {
     const { id } = req.params;
 
     const provider = await Provider.findById(id)
-      .populate('user', 'nom prenom email telephone adresse photo')
+      .populate("user", "nom prenom email telephone adresse photo")
       .populate({
-        path: 'reviews',
+        path: "reviews",
         populate: {
-          path: 'client',
-          select: 'nom prenom'
-        }
+          path: "client",
+          select: "nom prenom",
+        },
       });
 
     if (!provider) {
-      return res.status(404).json({ message: 'Prestataire non trouvé' });
+      return res.status(404).json({ message: "Prestataire non trouvé" });
     }
 
     res.status(200).json({ provider });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
 
@@ -140,10 +141,10 @@ export const updateProvider = async (req, res) => {
 
     // Si de nouveaux documents sont uploadés
     if (req.files && req.files.length > 0) {
-      const newVerificationDocuments = req.files.map(file => ({
+      const newVerificationDocuments = req.files.map((file) => ({
         documentType: file.fieldname,
         path: file.path,
-        status: 'pending'
+        status: "pending",
       }));
 
       const provider = await Provider.findById(id);
@@ -153,23 +154,22 @@ export const updateProvider = async (req, res) => {
       }
     }
 
-    const updatedProvider = await Provider.findByIdAndUpdate(
-      id,
-      updates,
-      { new: true, runValidators: true }
-    ).populate('user', 'nom prenom email telephone adresse photo');
+    const updatedProvider = await Provider.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true,
+    }).populate("user", "nom prenom email telephone adresse photo");
 
     if (!updatedProvider) {
-      return res.status(404).json({ message: 'Prestataire non trouvé' });
+      return res.status(404).json({ message: "Prestataire non trouvé" });
     }
 
     res.status(200).json({
-      message: 'Prestataire mis à jour avec succès',
-      provider: updatedProvider
+      message: "Prestataire mis à jour avec succès",
+      provider: updatedProvider,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
 
@@ -186,16 +186,16 @@ export const updateAvailability = async (req, res) => {
     );
 
     if (!provider) {
-      return res.status(404).json({ message: 'Prestataire non trouvé' });
+      return res.status(404).json({ message: "Prestataire non trouvé" });
     }
 
     res.status(200).json({
-      message: 'Disponibilités mises à jour avec succès',
-      disponibilite: provider.disponibilite
+      message: "Disponibilités mises à jour avec succès",
+      disponibilite: provider.disponibilite,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
 
@@ -214,7 +214,7 @@ export const getProviderBookings = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const bookings = await Booking.find(filter)
-      .populate('client', 'nom prenom email telephone')
+      .populate("client", "nom prenom email telephone")
       .sort({ date: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -225,11 +225,11 @@ export const getProviderBookings = async (req, res) => {
       bookings,
       totalPages: Math.ceil(totalBookings / parseInt(limit)),
       currentPage: parseInt(page),
-      totalBookings
+      totalBookings,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
 
@@ -241,28 +241,30 @@ export const getProviderStats = async (req, res) => {
     // Stats basiques du provider
     const provider = await Provider.findById(id);
     if (!provider) {
-      return res.status(404).json({ message: 'Prestataire non trouvé' });
+      return res.status(404).json({ message: "Prestataire non trouvé" });
     }
 
     // Stats des réservations
     const totalBookings = await Booking.countDocuments({ provider: id });
-    const completedBookings = await Booking.countDocuments({ 
-      provider: id, 
-      status: 'completed' 
+    const completedBookings = await Booking.countDocuments({
+      provider: id,
+      status: "completed",
     });
-    const pendingBookings = await Booking.countDocuments({ 
-      provider: id, 
-      status: 'pending' 
+    const pendingBookings = await Booking.countDocuments({
+      provider: id,
+      status: "pending",
     });
-    const acceptedBookings = await Booking.countDocuments({ 
-      provider: id, 
-      status: 'accepted' 
+    const acceptedBookings = await Booking.countDocuments({
+      provider: id,
+      status: "accepted",
     });
 
     // Revenus totaux
     const revenueResult = await Booking.aggregate([
-      { $match: { provider: mongoose.Types.ObjectId(id), status: 'completed' } },
-      { $group: { _id: null, totalRevenue: { $sum: '$price' } } }
+      {
+        $match: { provider: mongoose.Types.ObjectId(id), status: "completed" },
+      },
+      { $group: { _id: null, totalRevenue: { $sum: "$price" } } },
     ]);
     const totalRevenue = revenueResult[0]?.totalRevenue || 0;
 
@@ -274,44 +276,44 @@ export const getProviderStats = async (req, res) => {
       {
         $match: {
           provider: mongoose.Types.ObjectId(id),
-          createdAt: { $gte: sixMonthsAgo }
-        }
+          createdAt: { $gte: sixMonthsAgo },
+        },
       },
       {
         $group: {
           _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' }
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
           },
-          count: { $sum: 1 }
-        }
+          count: { $sum: 1 },
+        },
       },
-      { $sort: { '_id.year': 1, '_id.month': 1 } }
+      { $sort: { "_id.year": 1, "_id.month": 1 } },
     ]);
 
     const stats = {
       provider: {
         noteGenerale: provider.noteGenerale,
         nombreAvis: provider.nombreAvis,
-        isVerified: provider.isVerified
+        isVerified: provider.isVerified,
       },
       bookings: {
         total: totalBookings,
         completed: completedBookings,
         pending: pendingBookings,
-        accepted: acceptedBookings
+        accepted: acceptedBookings,
       },
       revenue: {
         total: totalRevenue,
-        average: completedBookings > 0 ? (totalRevenue / completedBookings) : 0
+        average: completedBookings > 0 ? totalRevenue / completedBookings : 0,
       },
-      monthlyBookings
+      monthlyBookings,
     };
 
     res.status(200).json({ stats });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
 
@@ -323,18 +325,18 @@ export const verifyDocuments = async (req, res) => {
 
     const provider = await Provider.findById(id);
     if (!provider) {
-      return res.status(404).json({ message: 'Prestataire non trouvé' });
+      return res.status(404).json({ message: "Prestataire non trouvé" });
     }
 
     const document = provider.verificationDocuments.id(documentId);
     if (!document) {
-      return res.status(404).json({ message: 'Document non trouvé' });
+      return res.status(404).json({ message: "Document non trouvé" });
     }
 
     document.status = status;
-    document.isVerified = status === 'verified';
-    
-    if (status === 'rejected' && rejectionReason) {
+    document.isVerified = status === "verified";
+
+    if (status === "rejected" && rejectionReason) {
       document.rejectionReason = rejectionReason;
     }
 
@@ -342,21 +344,167 @@ export const verifyDocuments = async (req, res) => {
 
     // Vérifier si tous les documents sont vérifiés pour marquer le provider comme vérifié
     const allDocumentsVerified = provider.verificationDocuments.every(
-      doc => doc.status === 'verified'
+      (doc) => doc.status === "verified"
     );
-    
+
     if (allDocumentsVerified && provider.verificationDocuments.length > 0) {
       provider.isVerified = true;
       await provider.save();
     }
 
     res.status(200).json({
-      message: 'Document mis à jour avec succès',
+      message: "Document mis à jour avec succès",
       document,
-      providerVerified: provider.isVerified
+      providerVerified: provider.isVerified,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Erreur serveur', error: error.message });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+
+// ===== GET DOCUMENTS STATUS (pour le prestataire) =====
+export const getMyDocumentsStatus = async (req, res) => {
+  try {
+    console.log("📄 getMyDocumentsStatus appelé");
+
+    // ✅ Vérifier que req.user existe
+    if (!req.user || !req.user._id) {
+      console.log("❌ req.user est undefined");
+      return res.status(401).json({ message: "Non authentifié" });
+    }
+
+    const userId = req.user._id;
+    console.log("👤 UserId:", userId);
+
+    const provider = await Provider.findOne({ user: userId }).populate(
+      "user",
+      "nom prenom email"
+    );
+
+    if (!provider) {
+      console.log("❌ Provider non trouvé pour userId:", userId);
+      return res.status(404).json({ message: "Profil prestataire non trouvé" });
+    }
+
+    console.log("✅ Provider trouvé:", provider._id);
+
+    // Compter les documents par statut
+    const stats = {
+      total: provider.verificationDocuments?.length || 0,
+      pending:
+        provider.verificationDocuments?.filter((d) => d.status === "pending")
+          .length || 0,
+      verified:
+        provider.verificationDocuments?.filter((d) => d.status === "verified")
+          .length || 0,
+      rejected:
+        provider.verificationDocuments?.filter((d) => d.status === "rejected")
+          .length || 0,
+    };
+
+    console.log("📊 Stats:", stats);
+
+    res.status(200).json({
+      provider: {
+        _id: provider._id,
+        isVerified: provider.isVerified,
+        verificationDocuments: provider.verificationDocuments || [],
+        stats,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Erreur getMyDocumentsStatus:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+
+// ===== RE-SOUMETTRE DES DOCUMENTS REJETÉS =====
+export const resubmitDocuments = async (req, res) => {
+  try {
+    console.log("📤 resubmitDocuments appelé");
+
+    const { id } = req.params; // ID du provider
+
+    // ✅ Vérifier que req.user existe
+    if (!req.user || !req.user._id) {
+      console.log("❌ req.user est undefined");
+      return res.status(401).json({ message: "Non authentifié" });
+    }
+
+    const userId = req.user._id;
+    console.log("👤 UserId:", userId);
+    console.log("🆔 ProviderId:", id);
+
+    const provider = await Provider.findById(id).populate("user");
+
+    if (!provider) {
+      console.log("❌ Provider non trouvé");
+      return res.status(404).json({ message: "Prestataire non trouvé" });
+    }
+
+    // ✅ Vérifier que c'est bien le prestataire qui fait la demande
+    if (provider.user._id.toString() !== userId.toString()) {
+      console.log(
+        "❌ Non autorisé - userId:",
+        userId,
+        "provider.user._id:",
+        provider.user._id
+      );
+      return res.status(403).json({ message: "Non autorisé" });
+    }
+
+    // Traiter les nouveaux documents
+    const newVerificationDocuments = [];
+
+    if (req.files?.certifications) {
+      console.log(
+        `📄 ${req.files.certifications.length} nouveau(x) certificat(s)`
+      );
+      req.files.certifications.forEach((file) => {
+        newVerificationDocuments.push({
+          documentType: "certificate",
+          path: file.path,
+          status: "pending",
+          isVerified: false,
+          uploadedAt: new Date(),
+        });
+      });
+    }
+
+    if (req.files?.documents) {
+      console.log(`📄 ${req.files.documents.length} nouveau(x) document(s)`);
+      req.files.documents.forEach((file) => {
+        newVerificationDocuments.push({
+          documentType: "other",
+          path: file.path,
+          status: "pending",
+          isVerified: false,
+          uploadedAt: new Date(),
+        });
+      });
+    }
+
+    if (newVerificationDocuments.length === 0) {
+      return res.status(400).json({ message: "Aucun document fourni" });
+    }
+
+    // Ajouter les nouveaux documents
+    provider.verificationDocuments.push(...newVerificationDocuments);
+
+    // Remettre le statut à "en attente" si le compte était refusé
+    provider.isVerified = false;
+
+    await provider.save();
+
+    console.log(`✅ ${newVerificationDocuments.length} document(s) ajouté(s)`);
+
+    res.status(200).json({
+      message: "Documents re-soumis avec succès",
+      provider,
+    });
+  } catch (error) {
+    console.error("❌ Erreur resubmitDocuments:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };

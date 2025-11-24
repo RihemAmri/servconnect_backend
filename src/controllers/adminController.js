@@ -1,6 +1,10 @@
 import User from "../models/user.model.js";
 import Provider from "../models/providerModel.js";
 
+// ==========================================
+// 👥 GESTION DES UTILISATEURS
+// ==========================================
+
 // 📌 Récupérer tous les utilisateurs avec filtres
 export const getAllUsers = async (req, res) => {
   try {
@@ -103,7 +107,6 @@ export const suspendUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Ajouter un champ "isSuspended" dans ton modèle User
     const user = await User.findByIdAndUpdate(
       id,
       { isSuspended: true },
@@ -144,6 +147,318 @@ export const deleteUser = async (req, res) => {
     res.status(200).json({ message: "Utilisateur supprimé" });
   } catch (error) {
     console.error("Erreur deleteUser:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+
+// ==========================================
+// 🔧 GESTION DES PRESTATAIRES
+// ==========================================
+
+// 📊 Liste tous les prestataires avec filtres
+export const getAllProviders = async (req, res) => {
+  try {
+    const { statut, ville, metier } = req.query;
+
+    // Récupérer les providers avec populate
+    const providers = await Provider.find()
+      .populate({
+        path: "user",
+        select: "-motDePasse",
+      })
+      .sort({ createdAt: -1 });
+
+    // Filtrer et formatter les données
+    let result = providers
+      .filter((provider) => provider.user) // Filtrer les providers sans user
+      .map((provider) => {
+        const user = provider.user;
+
+        // Extraire la ville depuis l'adresse
+        let ville = "Non renseigné";
+        if (user.adresse) {
+          if (user.adresse.street) {
+            // Extraire la ville depuis street (ex: "123 Rue Example, Tunis")
+            const addressParts = user.adresse.street.split(",");
+            ville =
+              addressParts.length > 1
+                ? addressParts[addressParts.length - 1].trim()
+                : user.adresse.street;
+          }
+        }
+
+        return {
+          _id: provider._id,
+          userId: user._id,
+          nom: user.nom,
+          prenom: user.prenom,
+          email: user.email,
+          telephone: user.telephone,
+          photo: user.photo,
+          metier: provider.metier,
+          ville: ville,
+          description: provider.description,
+          experience: provider.experience,
+          statut: provider.isVerified ? "actif" : "en_attente",
+          noteGenerale: provider.noteGenerale || 0,
+          nombreAvis: provider.nombreAvis || 0,
+          nombreMissions: 0, // À compléter avec le modèle Mission
+          dateInscription: user.dateInscription || user.createdAt,
+          verificationDocuments: provider.verificationDocuments || [],
+          documents: provider.documents || [],
+          certifications: provider.certifications || [],
+        };
+      });
+
+    // Appliquer les filtres
+    if (statut && statut !== "tous") {
+      result = result.filter((p) => p.statut === statut);
+    }
+
+    if (ville && ville !== "toutes") {
+      result = result.filter((p) =>
+        p.ville.toLowerCase().includes(ville.toLowerCase())
+      );
+    }
+
+    if (metier) {
+      result = result.filter((p) =>
+        p.metier.toLowerCase().includes(metier.toLowerCase())
+      );
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Erreur getAllProviders:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+
+// 📄 Détails d'un prestataire
+export const getProviderById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const provider = await Provider.findById(id).populate({
+      path: "user",
+      select: "-motDePasse",
+    });
+
+    if (!provider) {
+      return res.status(404).json({ message: "Prestataire introuvable" });
+    }
+
+    if (!provider.user) {
+      return res
+        .status(404)
+        .json({ message: "Utilisateur associé introuvable" });
+    }
+
+    const user = provider.user;
+
+    // Extraire la ville
+    let ville = "Non renseigné";
+    if (user.adresse && user.adresse.street) {
+      const addressParts = user.adresse.street.split(",");
+      ville =
+        addressParts.length > 1
+          ? addressParts[addressParts.length - 1].trim()
+          : user.adresse.street;
+    }
+
+    res.json({
+      _id: provider._id,
+      userId: user._id,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      telephone: user.telephone,
+      photo: user.photo,
+      metier: provider.metier,
+      ville: ville,
+      adresse: user.adresse,
+      description: provider.description,
+      experience: provider.experience,
+      certifications: provider.certifications || [],
+      documents: provider.documents || [],
+      verificationDocuments: provider.verificationDocuments || [],
+      statut: provider.isVerified ? "actif" : "en_attente",
+      noteGenerale: provider.noteGenerale || 0,
+      nombreAvis: provider.nombreAvis || 0,
+      nombreMissions: 0,
+      dateInscription: user.dateInscription || user.createdAt,
+      disponibilite: provider.disponibilite || [],
+    });
+  } catch (error) {
+    console.error("Erreur getProviderById:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+
+// ✅ VALIDER un prestataire
+export const validateProvider = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const provider = await Provider.findById(id);
+
+    if (!provider) {
+      return res.status(404).json({ message: "Prestataire introuvable" });
+    }
+
+    // Valider tous les documents
+    if (
+      provider.verificationDocuments &&
+      provider.verificationDocuments.length > 0
+    ) {
+      provider.verificationDocuments.forEach((doc) => {
+        doc.isVerified = true;
+        doc.status = "verified";
+      });
+    }
+
+    provider.isVerified = true;
+    await provider.save();
+
+    // Envoyer un email de confirmation (optionnel)
+    // await sendValidationEmail(provider.user);
+
+    res.json({
+      message: "Prestataire validé avec succès",
+      provider,
+    });
+  } catch (error) {
+    console.error("Erreur validateProvider:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+
+// ❌ REFUSER un prestataire
+export const rejectProvider = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { motif, documentIds } = req.body;
+
+    const provider = await Provider.findById(id);
+
+    if (!provider) {
+      return res.status(404).json({ message: "Prestataire introuvable" });
+    }
+
+    if (
+      !provider.verificationDocuments ||
+      provider.verificationDocuments.length === 0
+    ) {
+      return res.status(400).json({ message: "Aucun document à rejeter" });
+    }
+
+    // Si des documents spécifiques sont rejetés
+    if (documentIds && documentIds.length > 0) {
+      provider.verificationDocuments.forEach((doc) => {
+        if (documentIds.includes(doc._id.toString())) {
+          doc.status = "rejected";
+          doc.rejectionReason = motif;
+          doc.isVerified = false;
+        }
+      });
+    } else {
+      // Rejeter tous les documents
+      provider.verificationDocuments.forEach((doc) => {
+        doc.status = "rejected";
+        doc.rejectionReason = motif;
+        doc.isVerified = false;
+      });
+    }
+
+    provider.isVerified = false;
+    await provider.save();
+
+    // Envoyer un email de notification (optionnel)
+    // await sendRejectionEmail(provider.user, motif);
+
+    res.json({
+      message: "Prestataire refusé",
+      provider,
+    });
+  } catch (error) {
+    console.error("Erreur rejectProvider:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+
+// 🔄 VALIDER/REJETER un document spécifique
+export const updateDocumentStatus = async (req, res) => {
+  try {
+    const { id, documentId } = req.params;
+    const { status, rejectionReason } = req.body;
+
+    const provider = await Provider.findById(id);
+
+    if (!provider) {
+      return res.status(404).json({ message: "Prestataire introuvable" });
+    }
+
+    const document = provider.verificationDocuments.id(documentId);
+
+    if (!document) {
+      return res.status(404).json({ message: "Document introuvable" });
+    }
+
+    document.status = status;
+
+    if (status === "rejected") {
+      document.rejectionReason = rejectionReason;
+      document.isVerified = false;
+    }
+
+    if (status === "verified") {
+      document.isVerified = true;
+      document.rejectionReason = undefined;
+    }
+
+    // Vérifier si tous les documents sont validés
+    const allVerified = provider.verificationDocuments.every(
+      (doc) => doc.status === "verified"
+    );
+
+    if (allVerified && provider.verificationDocuments.length > 0) {
+      provider.isVerified = true;
+    } else {
+      provider.isVerified = false;
+    }
+
+    await provider.save();
+
+    res.json({
+      message: "Document mis à jour",
+      provider,
+    });
+  } catch (error) {
+    console.error("Erreur updateDocumentStatus:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+
+// 🗑️ SUPPRIMER un prestataire
+export const deleteProvider = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const provider = await Provider.findById(id);
+
+    if (!provider) {
+      return res.status(404).json({ message: "Prestataire introuvable" });
+    }
+
+    // Supprimer l'utilisateur associé
+    await User.findByIdAndDelete(provider.user);
+
+    // Supprimer le provider
+    await Provider.findByIdAndDelete(id);
+
+    res.json({ message: "Prestataire supprimé avec succès" });
+  } catch (error) {
+    console.error("Erreur deleteProvider:", error);
     res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };

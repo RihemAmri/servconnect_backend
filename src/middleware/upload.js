@@ -1,20 +1,4 @@
-/*import multer from "multer";
-import { CloudinaryStorage } from "multer-storage-cloudinary";
-import cloudinary from "../config/cloudinary.js";
-
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "servconnect_users", // nom du dossier Cloudinary
-    allowed_formats: ["jpg", "png", "jpeg"],
-  },
-});
-
-const upload = multer({ storage });
-
-export default upload;*/
-
-// src/middleware/uploadProvider.js
+/* 
 import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import cloudinary from "../config/cloudinary.js";
@@ -32,5 +16,58 @@ const storage = new CloudinaryStorage({
 // Middleware Multer
 const upload = multer({ storage });
 
-export default upload;
+export default upload; */
 
+import multer from "multer";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
+import cloudinary from "../config/cloudinary.js";
+
+// Configuration du stockage Cloudinary
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    // Déterminer le format selon le type de fichier
+    const isImage = file.mimetype.startsWith("image/");
+    const isPdf = file.mimetype === "application/pdf";
+
+    return {
+      folder: "servconnect_users",
+      allowed_formats: isImage ? ["jpg", "jpeg", "png", "webp"] : ["pdf"],
+      resource_type: isPdf ? "raw" : "image", // ✅ Important pour les PDFs
+      public_id: `${Date.now()}-${file.originalname.replace(/\s+/g, "_")}`,
+    };
+  },
+});
+
+// Middleware Multer de base
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      "image/jpeg",
+      "image/png",
+      "image/jpg",
+      "image/webp",
+      "application/pdf",
+    ];
+
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Format non autorisé. Utilisez JPG, PNG ou PDF."));
+    }
+  },
+});
+
+// ✅ Configuration spécifique pour l'inscription provider
+export const uploadProviderDocs = upload.fields([
+  { name: "photo", maxCount: 1 },
+  { name: "certifications", maxCount: 10 },
+  { name: "documents", maxCount: 10 },
+]);
+
+// Export par défaut pour les clients (photo uniquement)
+export default upload;

@@ -100,7 +100,7 @@ export const registerUser = async (req, res) => {
       adresse: {
         street: adresse.street,
         lat: adresse.lat,
-        lng: adresse.lng
+        lng: adresse.lng,
       },
       role: role || "client",
       photo: photoUrl,
@@ -119,7 +119,7 @@ export const registerUser = async (req, res) => {
 };
 
 // 📌 Inscription prestataire (avec fichiers Cloudinary)
-export const registerProvider = async (req, res) => {
+/* export const registerProvider = async (req, res) => {
   try {
     console.log("req.body:", req.body);
     console.log("req.files:", req.files);
@@ -204,7 +204,136 @@ export const registerProvider = async (req, res) => {
     console.error("Erreur registerProvider:", error);
     res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
+}; */
+
+export const registerProvider = async (req, res) => {
+  try {
+    console.log("req.body:", req.body);
+    console.log("req.files:", req.files);
+
+    const {
+      nom,
+      prenom,
+      email,
+      motDePasse,
+      telephone,
+      adresse,
+      metier,
+      description,
+      experience,
+      disponibilite,
+    } = req.body;
+
+    // Vérification email unique
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email déjà utilisé" });
+    }
+
+    const hashedPassword = await bcrypt.hash(motDePasse, 10);
+
+    // Récupération de la photo
+    const photoUrl = req.files?.photo?.[0]?.path || null;
+
+    // ✅ CONSTRUCTION DE verificationDocuments
+    const verificationDocuments = [];
+
+    // 📄 Ajouter les certificats comme documents de type "certificate"
+    if (req.files?.certifications && req.files.certifications.length > 0) {
+      req.files.certifications.forEach((file) => {
+        verificationDocuments.push({
+          documentType: "certificate",
+          path: file.path, // URL Cloudinary
+          status: "pending",
+          isVerified: false,
+          uploadedAt: new Date(),
+        });
+      });
+    }
+
+    // 📄 Ajouter les documents généraux comme type "other"
+    if (req.files?.documents && req.files.documents.length > 0) {
+      req.files.documents.forEach((file) => {
+        verificationDocuments.push({
+          documentType: "other",
+          path: file.path,
+          status: "pending",
+          isVerified: false,
+          uploadedAt: new Date(),
+        });
+      });
+    }
+
+    console.log("✅ Documents de vérification créés:", verificationDocuments);
+
+    // Convertir disponibilité
+    let disponibiliteParsed = [];
+    if (disponibilite) {
+      try {
+        disponibiliteParsed = JSON.parse(disponibilite);
+      } catch (err) {
+        return res.status(400).json({ message: "Disponibilité invalide" });
+      }
+    }
+
+    // Reconstruire l'adresse
+    let adresseParsed = null;
+    if (adresse) {
+      try {
+        const addrObj =
+          typeof adresse === "string" ? JSON.parse(adresse) : adresse;
+        adresseParsed = {
+          street: addrObj.street || "",
+          lat: parseFloat(addrObj.lat) || 0,
+          lng: parseFloat(addrObj.lng) || 0,
+        };
+      } catch (err) {
+        console.error("Erreur parsing adresse:", err);
+        return res.status(400).json({ message: "Adresse invalide" });
+      }
+    }
+
+    // Création du user
+    const newUser = new User({
+      nom,
+      prenom,
+      email,
+      motDePasse: hashedPassword,
+      telephone,
+      adresse: adresseParsed,
+      role: "prestataire",
+      photo: photoUrl,
+    });
+
+    const savedUser = await newUser.save();
+
+    // ✅ Création du provider avec verificationDocuments
+    const newProvider = new Provider({
+      user: savedUser._id,
+      metier,
+      description,
+      experience: parseInt(experience) || 0,
+      certifications: req.files?.certifications?.map((f) => f.path) || [],
+      documents: req.files?.documents?.map((f) => f.path) || [],
+      verificationDocuments: verificationDocuments, // ✅ IMPORTANT
+      disponibilite: disponibiliteParsed,
+    });
+
+    await newProvider.save();
+
+    console.log("✅ Provider créé avec succès:", newProvider);
+
+    res.status(201).json({
+      message: "Prestataire inscrit avec succès",
+      user: savedUser,
+      provider: newProvider,
+    });
+  } catch (error) {
+    console.error("❌ Erreur registerProvider:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
 };
+
 export const loginUser = async (req, res) => {
   try {
     const { email, motDePasse } = req.body;
@@ -251,14 +380,19 @@ export const forgotPassword = async (req, res) => {
 
     // Vérifier si l'utilisateur existe
     const user = await User.findOne({ email });
-    
+
     if (!user) {
-      return res.status(404).json({ message: "Aucun utilisateur trouvé avec cet email." });
+      return res
+        .status(404)
+        .json({ message: "Aucun utilisateur trouvé avec cet email." });
     }
 
     // Générer un token unique
     const resetToken = crypto.randomBytes(32).toString("hex");
-    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
 
     // Sauvegarder dans la BD (token + expiration)
     user.resetPasswordToken = hashedToken;
