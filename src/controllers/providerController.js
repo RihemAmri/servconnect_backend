@@ -1,6 +1,6 @@
 import Provider from "../models/providerModel.js";
 import User from "../models/user.model.js";
-import Booking from "../models/Booking.js";
+import Booking from "../models/bookingModel.js";
 import Review from "../models/Review.js";
 
 // ===== REGISTER PROVIDER =====
@@ -94,7 +94,7 @@ export const getProviders = async (req, res) => {
       .limit(parseInt(limit));
 
     const totalProviders = await Provider.countDocuments(filter);
-    console.log("Fetched providers:", providers);
+    
     res.status(200).json({
       providers,
       totalPages: Math.ceil(totalProviders / parseInt(limit)),
@@ -112,7 +112,8 @@ export const getProviderById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const provider = await Provider.findById(id)
+    // Try to find by provider ID first, then by user ID
+    let provider = await Provider.findById(id)
       .populate("user", "nom prenom email telephone adresse photo")
       .populate({
         path: "reviews",
@@ -121,6 +122,19 @@ export const getProviderById = async (req, res) => {
           select: "nom prenom",
         },
       });
+
+    // If not found, try to find by user ID
+    if (!provider) {
+      provider = await Provider.findOne({ user: id })
+        .populate("user", "nom prenom email telephone adresse photo")
+        .populate({
+          path: "reviews",
+          populate: {
+            path: "client",
+            select: "nom prenom",
+          },
+        });
+    }
 
     if (!provider) {
       return res.status(404).json({ message: "Prestataire non trouvé" });
@@ -233,87 +247,233 @@ export const getProviderBookings = async (req, res) => {
   }
 };
 
-// ===== GET PROVIDER STATS =====
+// ===== GET PROVIDER STATS (DASHBOARD) =====
 export const getProviderStats = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('📊 getProviderStats appelé avec id:', id);
 
-    // Stats basiques du provider
-    const provider = await Provider.findById(id);
+    // Trouver le provider - essayer d'abord par user ID, puis par provider ID
+    let provider = await Provider.findOne({ user: id });
+    
     if (!provider) {
-      return res.status(404).json({ message: "Prestataire non trouvé" });
+      // Essayer de trouver par provider ID directement
+      provider = await Provider.findById(id);
     }
+    
+    if (!provider) {
+      console.log('❌ Provider non trouvé pour id:', id);
+      return res.status(404).json({ success: false, message: "Prestataire non trouvé" });
+    }
+    
+    const providerId = provider._id;
+    console.log('✅ Provider trouvé:', providerId);
+
+    // Dates pour les calculs
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     // Stats des réservations
-    const totalBookings = await Booking.countDocuments({ provider: id });
-    const completedBookings = await Booking.countDocuments({
-      provider: id,
-      status: "completed",
-    });
-    const pendingBookings = await Booking.countDocuments({
-      provider: id,
-      status: "pending",
-    });
-    const acceptedBookings = await Booking.countDocuments({
-      provider: id,
-      status: "accepted",
-    });
-
-    // Revenus totaux
-    const revenueResult = await Booking.aggregate([
-      {
-        $match: { provider: mongoose.Types.ObjectId(id), status: "completed" },
-      },
-      { $group: { _id: null, totalRevenue: { $sum: "$price" } } },
+    const [
+      totalBookings,
+      completedBookings,
+      pendingBookings,
+      acceptedBookings,
+      cancelledBookings,
+      paidBookings
+    ] = await Promise.all([
+      Booking.countDocuments({ provider: providerId }),
+      Booking.countDocuments({ provider: providerId, status: { $in: ['completed', 'paid'] } }),
+      Booking.countDocuments({ provider: providerId, status: 'pending' }),
+      Booking.countDocuments({ provider: providerId, status: 'accepted' }),
+      Booking.countDocuments({ provider: providerId, status: 'cancelled' }),
+      Booking.countDocuments({ provider: providerId, paymentStatus: 'paid' })
     ]);
-    const totalRevenue = revenueResult[0]?.totalRevenue || 0;
 
-    // Réservations par mois (6 derniers mois)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    console.log('📋 Bookings:', { totalBookings, completedBookings, pendingBookings, acceptedBookings });
 
-    const monthlyBookings = await Booking.aggregate([
+    // Revenus totaux (réservations payées ou terminées)
+    const allPaidBookings = await Booking.find({ 
+      provider: providerId, 
+      $or: [
+        { status: { $in: ['completed', 'paid'] } },
+        { paymentStatus: 'paid' }
+      ]
+    });
+    
+    let totalRevenue = 0;
+    allPaidBookings.forEach(booking => {
+      totalRevenue += booking.proposedPrice || 0;
+    });
+    console.log('💰 Total Revenue:', totalRevenue, 'from', allPaidBookings.length, 'bookings');
+
+    // Revenus mensuels
+    const monthlyBookings = await Booking.find({ 
+      provider: providerId,
+      date: { $gte: startOfMonth },
+      $or: [
+        { status: { $in: ['completed', 'paid'] } },
+        { paymentStatus: 'paid' }
+      ]
+    });
+    let monthlyRevenue = 0;
+    monthlyBookings.forEach(b => monthlyRevenue += b.proposedPrice || 0);
+
+    // Revenus hebdomadaires
+    const weeklyBookings = await Booking.find({ 
+      provider: providerId,
+      date: { $gte: startOfWeek },
+      $or: [
+        { status: { $in: ['completed', 'paid'] } },
+        { paymentStatus: 'paid' }
+      ]
+    });
+    let weeklyRevenue = 0;
+    weeklyBookings.forEach(b => weeklyRevenue += b.proposedPrice || 0);
+
+    // Revenus du jour
+    const todayBookings = await Booking.find({ 
+      provider: providerId,
+      date: { $gte: startOfToday },
+      $or: [
+        { status: { $in: ['completed', 'paid'] } },
+        { paymentStatus: 'paid' }
+      ]
+    });
+    let todayRevenue = 0;
+    todayBookings.forEach(b => todayRevenue += b.proposedPrice || 0);
+
+    // Durée totale travaillée (en minutes)
+    const allCompletedBookings = await Booking.find({ 
+      provider: providerId, 
+      status: { $in: ['completed', 'paid'] }
+    });
+    let totalDuration = 0;
+    allCompletedBookings.forEach(b => totalDuration += b.estimatedDuration || 0);
+    
+    // Convertir en heures et minutes
+    const totalHours = Math.floor(totalDuration / 60);
+    const totalMinutes = totalDuration % 60;
+
+    // Clients uniques
+    const uniqueClients = await Booking.distinct('client', { provider: providerId });
+    
+    // Clients fidèles (plus d'une réservation)
+    const clientBookingCounts = {};
+    const allBookings = await Booking.find({ provider: providerId });
+    allBookings.forEach(b => {
+      const clientId = b.client.toString();
+      clientBookingCounts[clientId] = (clientBookingCounts[clientId] || 0) + 1;
+    });
+    const repeatCustomers = Object.values(clientBookingCounts).filter(count => count > 1).length;
+
+    // Taux de conversion (réservations terminées / total)
+    const conversionRate = totalBookings > 0 
+      ? Math.round((completedBookings / totalBookings) * 100) 
+      : 0;
+
+    // Note moyenne et nombre d'avis
+    const averageRating = provider.noteGenerale || 0;
+    const totalReviews = provider.nombreAvis || 0;
+
+    const stats = {
+      totalRevenue,
+      monthlyRevenue,
+      weeklyRevenue,
+      todayRevenue,
+      totalBookings,
+      pendingBookings,
+      completedBookings,
+      cancelledBookings,
+      averageRating,
+      totalReviews,
+      conversionRate,
+      repeatCustomers,
+      totalHours,
+      totalMinutes,
+      totalDuration
+    };
+
+    console.log('📊 Stats finales:', stats);
+    res.status(200).json({ success: true, data: stats });
+  } catch (error) {
+    console.error('❌ Error in getProviderStats:', error);
+    res.status(500).json({ success: false, message: "Erreur serveur", error: error.message });
+  }
+};
+
+// ===== GET PROVIDER REVENUE CHART =====
+export const getProviderRevenueChart = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Trouver le provider
+    const provider = await Provider.findOne({ user: id }) || await Provider.findById(id);
+    if (!provider) {
+      return res.status(404).json({ success: false, message: "Prestataire non trouvé" });
+    }
+    
+    const providerId = provider._id;
+
+    // Récupérer les revenus des 7 derniers mois
+    const sevenMonthsAgo = new Date();
+    sevenMonthsAgo.setMonth(sevenMonthsAgo.getMonth() - 6);
+    sevenMonthsAgo.setDate(1);
+    sevenMonthsAgo.setHours(0, 0, 0, 0);
+
+    const monthlyRevenue = await Booking.aggregate([
       {
-        $match: {
-          provider: mongoose.Types.ObjectId(id),
-          createdAt: { $gte: sixMonthsAgo },
-        },
+        $match: { 
+          provider: providerId,
+          date: { $gte: sevenMonthsAgo },
+          $or: [
+            { status: { $in: ['completed', 'paid'] } },
+            { paymentStatus: 'paid' }
+          ]
+        }
       },
       {
         $group: {
           _id: {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
+            year: { $year: '$date' },
+            month: { $month: '$date' }
           },
-          count: { $sum: 1 },
-        },
+          revenue: { $sum: { $ifNull: ['$proposedPrice', 0] } }
+        }
       },
-      { $sort: { "_id.year": 1, "_id.month": 1 } },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
     ]);
 
-    const stats = {
-      provider: {
-        noteGenerale: provider.noteGenerale,
-        nombreAvis: provider.nombreAvis,
-        isVerified: provider.isVerified,
-      },
-      bookings: {
-        total: totalBookings,
-        completed: completedBookings,
-        pending: pendingBookings,
-        accepted: acceptedBookings,
-      },
-      revenue: {
-        total: totalRevenue,
-        average: completedBookings > 0 ? totalRevenue / completedBookings : 0,
-      },
-      monthlyBookings,
-    };
+    // Formater les données pour le graphique
+    const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+    
+    // Créer un tableau avec les 7 derniers mois
+    const chartData = [];
+    const now = new Date();
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      
+      const found = monthlyRevenue.find(
+        item => item._id.year === year && item._id.month === month
+      );
+      
+      chartData.push({
+        month: monthNames[month - 1],
+        revenue: found ? found.revenue : 0
+      });
+    }
 
-    res.status(200).json({ stats });
+    res.status(200).json({ success: true, data: chartData });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Erreur serveur", error: error.message });
+    console.error('Error in getProviderRevenueChart:', error);
+    res.status(500).json({ success: false, message: "Erreur serveur", error: error.message });
   }
 };
 
@@ -505,6 +665,105 @@ export const resubmitDocuments = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Erreur resubmitDocuments:", error);
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+
+// ===== UPLOAD SINGLE DOCUMENT =====
+export const uploadSingleDocument = async (req, res) => {
+  try {
+    console.log("📤 uploadSingleDocument appelé");
+
+    const { id } = req.params; // ID du provider
+    const { documentType } = req.body;
+
+    // Vérifier que req.user existe
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ message: "Non authentifié" });
+    }
+
+    const userId = req.user._id;
+
+    // Vérifier que le type de document est valide
+    const validTypes = ['id', 'certificate', 'license', 'other'];
+    if (!validTypes.includes(documentType)) {
+      return res.status(400).json({ 
+        message: "Type de document invalide. Types valides: id, certificate, license, other" 
+      });
+    }
+
+    const provider = await Provider.findById(id).populate("user");
+
+    if (!provider) {
+      return res.status(404).json({ message: "Prestataire non trouvé" });
+    }
+
+    // Vérifier que c'est bien le prestataire qui fait la demande
+    if (provider.user._id.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Non autorisé" });
+    }
+
+    // Vérifier qu'un fichier a été envoyé
+    if (!req.file) {
+      return res.status(400).json({ message: "Aucun fichier fourni" });
+    }
+
+    console.log(`📄 Document reçu: ${req.file.originalname} (${documentType})`);
+
+    // Vérifier si un document de ce type existe déjà et est rejeté
+    const existingDocIndex = provider.verificationDocuments.findIndex(
+      d => d.documentType === documentType
+    );
+
+    if (existingDocIndex !== -1) {
+      const existingDoc = provider.verificationDocuments[existingDocIndex];
+      
+      // Si le document existant n'est pas rejeté, on ne peut pas le remplacer
+      if (existingDoc.status !== 'rejected') {
+        return res.status(400).json({ 
+          message: `Un document de type "${documentType}" existe déjà et n'a pas été rejeté` 
+        });
+      }
+
+      // Remplacer le document rejeté
+      provider.verificationDocuments[existingDocIndex] = {
+        documentType,
+        path: req.file.path,
+        status: 'pending',
+        isVerified: false,
+        uploadedAt: new Date()
+      };
+
+      console.log(`📝 Document "${documentType}" remplacé`);
+    } else {
+      // Ajouter un nouveau document
+      provider.verificationDocuments.push({
+        documentType,
+        path: req.file.path,
+        status: 'pending',
+        isVerified: false,
+        uploadedAt: new Date()
+      });
+
+      console.log(`➕ Nouveau document "${documentType}" ajouté`);
+    }
+
+    // Remettre le statut à "en attente" si le compte était refusé
+    provider.isVerified = false;
+
+    await provider.save();
+
+    res.status(200).json({
+      message: "Document envoyé avec succès",
+      document: {
+        documentType,
+        path: req.file.path,
+        status: 'pending'
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Erreur uploadSingleDocument:", error);
     res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };

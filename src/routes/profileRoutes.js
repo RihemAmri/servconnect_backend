@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  getUserProfile,
   getProviderProfile,
   updateUserProfile,
   updateProviderProfile,
@@ -12,6 +13,11 @@ import upload from "../middleware/upload.js";
 
 const router = express.Router();
 
+
+// ===============================
+// GET USER DATA
+// ===============================
+router.get("/users/:userId", getUserProfile);
 
 // ===============================
 // GET PROVIDER DATA
@@ -40,6 +46,7 @@ router.put(
   upload.single("photo"),
   updateUserPhoto
 );
+
 
 // ===============================
 // ADD CERTIFICATIONS
