@@ -43,7 +43,7 @@ const storage = new CloudinaryStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB max
+    fileSize: 10 * 1024 * 1024, // 10MB max (increased from 5MB)
   },
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
@@ -68,6 +68,9 @@ export const uploadProviderDocs = upload.fields([
   { name: "certifications", maxCount: 10 },
   { name: "documents", maxCount: 10 },
 ]);
+
+// ✅ Configuration pour upload d'un seul document
+export const uploadSingleDoc = upload.single("document");
 
 // Export par défaut pour les clients (photo uniquement)
 export default upload;

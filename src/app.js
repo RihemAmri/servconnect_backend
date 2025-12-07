@@ -8,11 +8,15 @@ import bookingRoutes from "./routes/bookingRoutes.js";
 import mapRoutes from "./routes/mapRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import stripeRoutes from "./routes/stripeRoutes.js";
 
 const app = express();
 
 // Connexion MongoDB
 connectDB();
+
+// ⚠️ Webhook Stripe DOIT être AVANT express.json() pour recevoir le raw body
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
 // Middlewares
 app.use(cors());
@@ -40,6 +44,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/map", mapRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/stripe", stripeRoutes);
 
 // Test route
 app.get("/api/test", (req, res) => {

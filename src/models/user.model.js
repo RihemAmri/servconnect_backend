@@ -13,12 +13,11 @@ const UserSchema = new mongoose.Schema({
   prenom: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   motDePasse: { type: String, required: true },
-  photo: { type: String }, // lien Cloudinary
   noteGenerale: { type: Number, default: 0 },
   nombreAvis: { type: Number, default: 0 },
   telephone: { type: String },
   adresse: { type: AdresseSchema, required: true },
-  photo: { type: String }, // lien Cloudinary
+  photo: { type: String, default: 'https://via.placeholder.com/150/667eea/ffffff?text=User' }, // lien Cloudinary avec image par défaut
   role: {
     type: String,
     enum: ["client", "prestataire", "admin"],
