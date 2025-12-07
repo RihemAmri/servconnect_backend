@@ -1,10 +1,11 @@
-import Booking from '../models/Booking.js';
+import Booking from '../models/bookingModel.js';
 import Provider from '../models/providerModel.js';
 import User from '../models/user.model.js';
 import Review from '../models/Review.js';
 
 // 📝 POST /bookings - Créer une nouvelle réservation (côté client)
 export const createBooking = async (req, res) => {
+  
   try {
     const {
       providerId,
@@ -110,7 +111,7 @@ export const createBooking = async (req, res) => {
     const populatedBooking = await Booking.findById(newBooking._id)
       .populate('provider', 'metier user')
       .populate('client', 'nom prenom email telephone photo');
-
+    console.log("test mrigla booking:", populatedBooking);
     res.status(201).json({
       success: true,
       message: 'Réservation créée avec succès! Le prestataire examinera votre demande.',
@@ -137,10 +138,10 @@ export const getBookingById = async (req, res) => {
         path: 'provider',
         populate: {
           path: 'user',
-          select: 'nom prenom email phone profileImage'
+          select: 'nom prenom email telephone photo'
         }
       })
-      .populate('client', 'nom prenom email phone profileImage');
+      .populate('client', 'nom prenom email telephone photo');
 
     if (!booking) {
       return res.status(404).json({
@@ -209,9 +210,10 @@ export const acceptBooking = async (req, res) => {
 
     // 💰 Mettre à jour la réservation
     booking.status = 'accepted';
-    booking.price = price;
+    booking.proposedPrice = price;
     booking.estimatedDuration = estimatedDuration;
-    booking.notes = notes;
+    booking.providerNotes = notes;
+    booking.acceptedAt = new Date();
 
     await booking.save();
 
@@ -220,10 +222,10 @@ export const acceptBooking = async (req, res) => {
         path: 'provider',
         populate: {
           path: 'user',
-          select: 'nom prenom email phone'
+          select: 'nom prenom email telephone photo'
         }
       })
-      .populate('client', 'nom prenom email phone');
+      .populate('client', 'nom prenom email telephone photo');
 
     res.status(200).json({
       success: true,
@@ -276,7 +278,7 @@ export const refuseBooking = async (req, res) => {
 
     // ❌ Refuser la réservation
     booking.status = 'refused';
-    booking.refuseReason = refuseReason;
+    booking.refusalReason = refuseReason;
 
     await booking.save();
 
@@ -285,10 +287,10 @@ export const refuseBooking = async (req, res) => {
         path: 'provider',
         populate: {
           path: 'user',
-          select: 'nom prenom email phone'
+          select: 'nom prenom email telephone photo'
         }
       })
-      .populate('client', 'nom prenom email phone');
+      .populate('client', 'nom prenom email telephone photo');
 
     res.status(200).json({
       success: true,
@@ -356,10 +358,10 @@ export const payBooking = async (req, res) => {
           path: 'provider',
           populate: {
             path: 'user',
-            select: 'nom prenom email phone'
+            select: 'nom prenom email telephone photo'
           }
         })
-        .populate('client', 'nom prenom email phone');
+        .populate('client', 'nom prenom email telephone photo');
 
       res.status(200).json({
         success: true,
@@ -409,11 +411,11 @@ export const completeBooking = async (req, res) => {
       });
     }
 
-    // 🔄 Vérifier le statut
-    if (booking.status !== 'paid') {
+    // 🔄 Vérifier le statut - Peut marquer terminé si accepté ou payé
+    if (booking.status !== 'paid' && booking.status !== 'accepted') {
       return res.status(400).json({
         success: false,
-        message: 'Cette réservation ne peut pas être marquée comme terminée'
+        message: 'Cette réservation doit être acceptée ou payée pour être marquée comme terminée'
       });
     }
 
@@ -430,10 +432,10 @@ export const completeBooking = async (req, res) => {
         path: 'provider',
         populate: {
           path: 'user',
-          select: 'nom prenom email phone'
+          select: 'nom prenom email telephone photo'
         }
       })
-      .populate('client', 'nom prenom email phone');
+      .populate('client', 'nom prenom email telephone photo');
 
     res.status(200).json({
       success: true,
@@ -467,7 +469,7 @@ export const getClientBookings = async (req, res) => {
         path: 'provider',
         populate: {
           path: 'user',
-          select: 'nom prenom email phone profileImage'
+          select: 'nom prenom email telephone photo'
         }
       })
       .sort({ createdAt: -1 });
@@ -574,7 +576,7 @@ export const addReview = async (req, res) => {
     await provider.save();
 
     const populatedReview = await Review.findById(review._id)
-      .populate('client', 'nom prenom profileImage');
+      .populate('client', 'nom prenom photo');
 
     res.status(201).json({
       success: true,
@@ -587,6 +589,278 @@ export const addReview = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erreur serveur lors de l\'ajout de l\'avis',
+      error: error.message
+    });
+  }
+};
+
+// 📋 GET /bookings/provider/:providerId - Récupérer toutes les réservations d'un provider
+export const getProviderBookings = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    const { status } = req.query;
+
+    let filter = { provider: providerId };
+    if (status) {
+      filter.status = status;
+    }
+
+    const bookings = await Booking.find(filter)
+      .populate('client', 'nom prenom email telephone photo')
+      .sort({ createdAt: -1 });
+
+    const stats = {
+      total: bookings.length,
+      pending: bookings.filter(b => b.status === 'pending').length,
+      accepted: bookings.filter(b => b.status === 'accepted').length,
+      paid: bookings.filter(b => b.status === 'paid').length,
+      completed: bookings.filter(b => b.status === 'completed').length,
+      refused: bookings.filter(b => b.status === 'refused').length
+    };
+
+    res.status(200).json({
+      success: true,
+      data: bookings,
+      stats
+    });
+
+  } catch (error) {
+    console.error('Erreur getProviderBookings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des réservations provider',
+      error: error.message
+    });
+  }
+};
+
+// 🔔 GET /bookings/provider/:providerId/pending - Demandes en attente (GestionBook)
+export const getPendingBookings = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    const bookings = await Booking.find({
+      provider: providerId,
+      status: 'pending'
+    })
+      .populate('client', 'nom prenom email telephone photo')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: bookings.length,
+      data: bookings
+    });
+
+  } catch (error) {
+    console.error('Erreur getPendingBookings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des demandes en attente',
+      error: error.message
+    });
+  }
+};
+
+// 📅 GET /bookings/provider/:providerId/upcoming - Services à venir (Upcoming Services)
+export const getUpcomingBookings = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    const bookings = await Booking.find({
+      provider: providerId,
+      status: { $in: ['accepted', 'paid'] },
+      date: { $gte: new Date() } // Date future uniquement
+    })
+      .populate('client', 'nom prenom email telephone photo')
+      .sort({ date: 1, time: 1 }); // Trier par date croissante
+
+    res.status(200).json({
+      success: true,
+      count: bookings.length,
+      data: bookings
+    });
+
+  } catch (error) {
+    console.error('Erreur getUpcomingBookings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des services à venir',
+      error: error.message
+    });
+  }
+};
+
+// ✅ GET /bookings/provider/:providerId/completed - Services terminés (Past Services)
+export const getCompletedBookings = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    const bookings = await Booking.find({
+      provider: providerId,
+      status: 'completed'
+    })
+      .populate('client', 'nom prenom email telephone photo')
+      .sort({ completedAt: -1 }); // Plus récent en premier
+
+    // Calculer les statistiques
+    const totalRevenue = bookings.reduce((sum, b) => sum + (b.proposedPrice || 0), 0);
+    const totalDuration = bookings.reduce((sum, b) => sum + (b.estimatedDuration || 0), 0);
+
+    res.status(200).json({
+      success: true,
+      count: bookings.length,
+      stats: {
+        totalRevenue,
+        totalDuration,
+        averagePrice: bookings.length > 0 ? totalRevenue / bookings.length : 0
+      },
+      data: bookings
+    });
+
+  } catch (error) {
+    console.error('Erreur getCompletedBookings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des services terminés',
+      error: error.message
+    });
+  }
+};
+
+// 📊 GET /bookings/provider/:providerId/all - Toutes les réservations avec stats (MyServices)
+export const getAllProviderBookings = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    // Récupérer toutes les réservations du provider
+    const allBookings = await Booking.find({ provider: providerId })
+      .populate('client', 'nom prenom email telephone photo')
+      .sort({ date: 1, time: 1 }); // Trier par date croissante
+
+    // Grouper par statut
+    const pending = allBookings.filter(b => b.status === 'pending');
+    const accepted = allBookings.filter(b => b.status === 'accepted');
+    const paid = allBookings.filter(b => b.status === 'paid');
+    const completed = allBookings.filter(b => b.status === 'completed');
+    const refused = allBookings.filter(b => b.status === 'refused');
+    const cancelled = allBookings.filter(b => b.status === 'cancelled');
+
+    // Calculer les statistiques
+    const totalRevenue = completed.reduce((sum, b) => sum + (b.proposedPrice || 0), 0);
+    const pendingRevenue = [...accepted, ...paid].reduce((sum, b) => sum + (b.proposedPrice || 0), 0);
+    const totalDuration = completed.reduce((sum, b) => sum + (b.estimatedDuration || 0), 0);
+
+    // Statistiques du mois en cours
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    const thisMonthBookings = allBookings.filter(b => {
+      const bookingDate = new Date(b.date);
+      return bookingDate >= startOfMonth && bookingDate <= endOfMonth;
+    });
+
+    const thisMonthCompleted = thisMonthBookings.filter(b => b.status === 'completed');
+    const thisMonthRevenue = thisMonthCompleted.reduce((sum, b) => sum + (b.proposedPrice || 0), 0);
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        total: allBookings.length,
+        pending: pending.length,
+        accepted: accepted.length,
+        paid: paid.length,
+        completed: completed.length,
+        refused: refused.length,
+        cancelled: cancelled.length,
+        totalRevenue,
+        pendingRevenue,
+        totalDuration,
+        thisMonth: {
+          total: thisMonthBookings.length,
+          completed: thisMonthCompleted.length,
+          revenue: thisMonthRevenue
+        }
+      },
+      data: {
+        all: allBookings,
+        pending,
+        accepted,
+        paid,
+        completed,
+        refused,
+        cancelled
+      }
+    });
+
+  } catch (error) {
+    console.error('Erreur getAllProviderBookings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des réservations',
+      error: error.message
+    });
+  }
+};
+
+// ❌ PUT /bookings/:id/cancel - Client annule la réservation
+export const cancelBooking = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { clientId, reason = '' } = req.body;
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Réservation non trouvée'
+      });
+    }
+
+    // 🔒 Vérifier que c'est bien le client concerné
+    if (booking.client.toString() !== clientId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Non autorisé à annuler cette réservation'
+      });
+    }
+
+    // 🔄 Vérifier le statut - Peut annuler si pending ou accepted (avant paiement)
+    if (!['pending', 'accepted'].includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cette réservation ne peut plus être annulée'
+      });
+    }
+
+    // ❌ Annuler la réservation
+    booking.status = 'cancelled';
+    booking.refusalReason = reason || 'Annulée par le client';
+
+    await booking.save();
+
+    const updatedBooking = await Booking.findById(id)
+      .populate({
+        path: 'provider',
+        populate: {
+          path: 'user',
+          select: 'nom prenom email telephone'
+        }
+      })
+      .populate('client', 'nom prenom email telephone');
+
+    res.status(200).json({
+      success: true,
+      message: 'Réservation annulée avec succès',
+      data: updatedBooking
+    });
+
+  } catch (error) {
+    console.error('Erreur cancelBooking:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de l\'annulation de la réservation',
       error: error.message
     });
   }

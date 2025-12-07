@@ -2,6 +2,20 @@ import User from "../models/user.model.js";
 import Provider from "../models/providerModel.js";
 
 // ===============================
+// GET USER PROFILE
+// ===============================
+export const getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ message: "Utilisateur non trouvé" });
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ===============================
 // GET PROVIDER BY USER ID
 // ===============================
 export const getProviderProfile = async (req, res) => {
@@ -25,7 +39,7 @@ export const updateUserProfile = async (req, res) => {
       req.body,
       { new: true }
     );
-    res.json({ message: "Utilisateur mis à jour", user: updated });
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -44,7 +58,7 @@ export const updateProviderProfile = async (req, res) => {
 
     if (!provider) return res.status(404).json({ message: "Prestataire non trouvé" });
 
-    res.json({ message: "Prestataire mis à jour", provider });
+    res.json(provider);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
