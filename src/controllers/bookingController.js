@@ -2,6 +2,7 @@ import Booking from '../models/bookingModel.js';
 import Provider from '../models/providerModel.js';
 import User from '../models/user.model.js';
 import Review from '../models/Review.js';
+import { sendEmail } from "../config/emailService.js";
 
 // 📝 POST /bookings - Créer une nouvelle réservation (côté client)
 export const createBooking = async (req, res) => {
@@ -109,14 +110,51 @@ export const createBooking = async (req, res) => {
 
     // 📤 Populer les données pour la réponse
     const populatedBooking = await Booking.findById(newBooking._id)
-      .populate('provider', 'metier user')
+       .populate({
+        path: 'provider',
+        select: 'metier user',
+        populate: {
+          path: 'user',
+          select: 'nom prenom email telephone photo'
+        }
+      })
       .populate('client', 'nom prenom email telephone photo');
     console.log("test mrigla booking:", populatedBooking);
+
+   // Emails après le populate
+    const providerEmail = populatedBooking.provider.user.email;
+    const providerNom = populatedBooking.provider.user.nom;
+    const clientEmail = populatedBooking.client.email;
+
+    // Email pour le prestataire
+    await sendEmail(
+      providerEmail,
+      "Nouvelle réservation reçue",
+      `<p>Bonjour ${providerNom},</p>
+      <p>Vous avez une nouvelle demande de réservation de ${populatedBooking.client.nom} ${populatedBooking.client.prenom}.</p>
+      <p>Service : <b>${serviceType}</b></p>
+      <p>Date : <b>${date}</b> à <b>${time}</b></p>
+      <p>Merci de vérifier votre dashboard pour accepter ou refuser la demande.</p>
+      <p>— L'équipe ServConnect</p>`
+    );
+
+    // Email pour le client
+    await sendEmail(
+      clientEmail,
+      "Réservation créée avec succès",
+      `<p>Bonjour ${populatedBooking.client.nom},</p>
+      <p>Votre réservation pour <b>${serviceType}</b> le ${date} à ${time} a été créée avec succès.</p>
+      <p>Vous serez notifié lorsque le prestataire acceptera ou refusera votre demande.</p>
+      <p>— L'équipe ServConnect</p>`
+    );
+
+    // FIN EMAILS
     res.status(201).json({
       success: true,
       message: 'Réservation créée avec succès! Le prestataire examinera votre demande.',
       data: populatedBooking
     });
+
 
   } catch (error) {
     console.error('Erreur createBooking:', error);
@@ -226,6 +264,37 @@ export const acceptBooking = async (req, res) => {
         }
       })
       .populate('client', 'nom prenom email telephone photo');
+    // ===== Envoi email client =====
+    await sendEmail(
+      updatedBooking.client.email,
+      'Votre réservation a été acceptée',
+      `
+        <p>Bonjour ${updatedBooking.client.nom},</p>
+        <p>Votre réservation pour <strong>${updatedBooking.service}</strong> avec 
+        ${updatedBooking.provider.user.nom} ${updatedBooking.provider.user.prenom}
+        le ${updatedBooking.date.toLocaleDateString()} à ${updatedBooking.time} a été acceptée.</p>
+
+        <p><strong>Prix proposé :</strong> ${price} TND</p>
+        <p><strong>Durée estimée :</strong> ${estimatedDuration}h</p>
+
+        <p>— L'équipe ServConnect</p>
+      `
+    );
+    // ===== Envoi email provider =====
+    await sendEmail(
+      updatedBooking.provider.user.email,
+      'Réservation acceptée',
+      `
+        <p>Bonjour ${updatedBooking.provider.user.nom},</p>
+        <p>Vous avez accepté la réservation de 
+        ${updatedBooking.client.nom} ${updatedBooking.client.prenom}
+        pour le service <strong>${updatedBooking.service}</strong> 
+        le ${updatedBooking.date.toLocaleDateString()} à ${updatedBooking.time}.</p>
+
+        <p>— L'équipe ServConnect</p>
+      `
+    );
+    // 🔥🔥🔥 FIN EMAIL 🔥🔥🔥
 
     res.status(200).json({
       success: true,
@@ -291,6 +360,21 @@ export const refuseBooking = async (req, res) => {
         }
       })
       .populate('client', 'nom prenom email telephone photo');
+       // 📩 **ENVOI DE L’EMAIL AU CLIENT → ICI**
+    const client = updatedBooking.client;
+    const provider = updatedBooking.provider;
+
+    await sendEmail(
+      client.email,
+      'Votre réservation a été refusée',
+      `
+        <p>Bonjour ${client.nom},</p>
+        <p>Votre réservation pour <strong>"${booking.service}"</strong> avec 
+        ${provider.user.nom} ${provider.user.prenom} a été refusée.</p>
+        <p><strong>Raison :</strong> ${refuseReason || 'Non spécifiée'}</p>
+        <p>— L'équipe ServConnect</p>
+      `
+    );
 
     res.status(200).json({
       success: true,
@@ -311,6 +395,7 @@ export const refuseBooking = async (req, res) => {
 // 💳 PUT /bookings/:id/pay - Client effectue le paiement
 export const payBooking = async (req, res) => {
   try {
+    console.log("hello")
     const { id } = req.params;
     const { 
       paymentMethod,
@@ -362,6 +447,37 @@ export const payBooking = async (req, res) => {
           }
         })
         .populate('client', 'nom prenom email telephone photo');
+
+      //envoi mail 
+      
+      const providerEmail = updatedBooking.provider?.user?.email;
+      const clientEmail = updatedBooking.client?.email;
+      
+      console.log('providerEmail:', providerEmail);
+      console.log('clientEmail:', clientEmail);
+      // 📩📩 ENVOI DES EMAILS ICI
+      if (providerEmail && clientEmail) {
+          await sendEmail(
+            providerEmail,
+            'Réservation payée',
+            `<p>Bonjour ${updatedBooking.provider.user.nom},</p>
+            <p>La réservation pour "${updatedBooking.service}" de ${updatedBooking.client.nom} ${updatedBooking.client.prenom} le ${updatedBooking.date.toLocaleDateString()} à ${updatedBooking.time} a été payée.</p>
+            <p>— L'équipe ServConnect</p>`
+          );
+
+          await sendEmail(
+            clientEmail,
+            'Paiement confirmé',
+            `<p>Bonjour ${updatedBooking.client.nom},</p>
+            <p>Votre paiement pour la réservation "${updatedBooking.service}" avec ${updatedBooking.provider.user.nom} ${updatedBooking.provider.user.prenom} a été effectué avec succès.</p>
+            <p>— L'équipe ServConnect</p>`
+          );
+        } else {
+          console.warn('Impossible d’envoyer le mail, email manquant', { providerEmail, clientEmail });
+        }
+
+
+      // ✔️ Réponse API
 
       res.status(200).json({
         success: true,
@@ -849,6 +965,28 @@ export const cancelBooking = async (req, res) => {
         }
       })
       .populate('client', 'nom prenom email telephone');
+
+
+     // ✅ ENVOYER LES EMAILS ICI
+    const provider = updatedBooking.provider;
+    const client = updatedBooking.client;
+
+    await sendEmail(
+      provider.user.email,
+      'Réservation annulée',
+      `<p>Bonjour ${provider.user.nom},</p>
+       <p>La réservation de ${client.nom} ${client.prenom} pour "${booking.service}" le ${booking.date.toLocaleDateString()} a été annulée.</p>
+       <p>Raison : ${reason || 'Non spécifiée'}</p>
+       <p>— L'équipe ServConnect</p>`
+    );
+
+    await sendEmail(
+      client.email,
+      'Réservation annulée',
+      `<p>Bonjour ${client.nom},</p>
+       <p>Votre réservation pour "${booking.service}" avec ${provider.user.nom} ${provider.user.prenom} a été annulée.</p>
+       <p>— L'équipe ServConnect</p>`
+    );
 
     res.status(200).json({
       success: true,

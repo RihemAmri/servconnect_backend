@@ -77,7 +77,7 @@ export const getUserReclamations = async (req, res) => {
 export const getAllReclamations = async (req, res) => {
   try {
     const recs = await Reclamation.find()
-      .populate("user", "nom prenom email")
+      .populate("user", "nom prenom email role")
       .sort({ dateCreation: -1 }); // <-- tri décroissant
     res.json(recs);
   } catch (err) {
@@ -94,7 +94,7 @@ export const respondReclamation = async (req, res) => {
       req.params.id,
       { status, reponse },
       { new: true }
-    ).populate("user", "nom prenom email");
+    ).populate("user", "nom prenom email role");
     if (!rec) return res.status(404).json({ message: "Réclamation introuvable" });
 
      /** 🔔 Email → envoyé à l'utilisateur */
