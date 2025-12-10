@@ -47,6 +47,7 @@ router.put(
   updateUserPhoto
 );
 
+
 // ===============================
 // ADD CERTIFICATIONS
 // ===============================

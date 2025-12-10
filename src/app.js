@@ -8,6 +8,8 @@ import bookingRoutes from "./routes/bookingRoutes.js";
 import mapRoutes from "./routes/mapRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import reclamationRoutes from "./routes/reclamationRoutes.js";
+import chatbotRoute from "./routes/chatbotRoutes.js"
 import stripeRoutes from "./routes/stripeRoutes.js";
 
 const app = express();
@@ -44,6 +46,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/map", mapRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/reclamations", reclamationRoutes);app.use("/api/chatbot", chatbotRoute);
 app.use("/api/stripe", stripeRoutes);
 
 // Test route

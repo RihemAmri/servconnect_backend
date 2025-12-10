@@ -108,6 +108,8 @@ export const updateProviderCertifications = async (req, res) => {
 };
 
 
+
+
 // ===============================
 // 🔵 AJOUT DOCUMENTS
 // ===============================
