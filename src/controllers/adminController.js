@@ -387,10 +387,13 @@ export const rejectProvider = async (req, res) => {
 };
 
 // 🔄 VALIDER/REJETER un document spécifique
+// 🔄 VALIDER/REJETER un document spécifique
 export const updateDocumentStatus = async (req, res) => {
   try {
     const { id, documentId } = req.params;
     const { status, rejectionReason } = req.body;
+
+    console.log(`📄 Mise à jour document ${documentId} → ${status}`);
 
     const provider = await Provider.findById(id);
 
@@ -404,11 +407,18 @@ export const updateDocumentStatus = async (req, res) => {
       return res.status(404).json({ message: "Document introuvable" });
     }
 
+    // Mettre à jour le statut du document
     document.status = status;
 
     if (status === "rejected") {
       document.rejectionReason = rejectionReason;
       document.isVerified = false;
+
+      // ✅ AUTOMATIQUEMENT REFUSER LE PRESTATAIRE
+      provider.isVerified = false;
+      console.log(
+        `❌ Prestataire ${provider._id} automatiquement refusé car document rejeté`
+      );
     }
 
     if (status === "verified") {
@@ -421,10 +431,27 @@ export const updateDocumentStatus = async (req, res) => {
       (doc) => doc.status === "verified"
     );
 
-    if (allVerified && provider.verificationDocuments.length > 0) {
-      provider.isVerified = true;
-    } else {
+    const hasRejected = provider.verificationDocuments.some(
+      (doc) => doc.status === "rejected"
+    );
+
+    // ✅ Logique de statut du prestataire
+    if (hasRejected) {
+      // Si AU MOINS UN document est rejeté → prestataire refusé
       provider.isVerified = false;
+      console.log(
+        `❌ Prestataire ${provider._id} → statut: refusé (documents rejetés)`
+      );
+    } else if (allVerified && provider.verificationDocuments.length > 0) {
+      // Si TOUS les documents sont vérifiés → prestataire actif
+      provider.isVerified = true;
+      console.log(
+        `✅ Prestataire ${provider._id} → statut: actif (tous docs validés)`
+      );
+    } else {
+      // Sinon → en attente
+      provider.isVerified = false;
+      console.log(`⏳ Prestataire ${provider._id} → statut: en attente`);
     }
 
     await provider.save();
