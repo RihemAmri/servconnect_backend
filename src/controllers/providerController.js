@@ -72,7 +72,9 @@ export const getProviders = async (req, res) => {
     } = req.query;
 
     // Construction du filtre
-    const filter = {};
+    const filter = {
+      isVerified: true  // Only show validated providers
+    };
 
     if (category && category !== "Tous") {
       filter.metier = new RegExp(category, "i");
